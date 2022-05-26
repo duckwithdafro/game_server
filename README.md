@@ -4,6 +4,9 @@ So far, I only decided what I'm going to use to develop it, and I'm not sure how
 This is inspired by club penguin and how it gave children something to look forward to before and after school.
 With that said, i plan on it to be easily accessible to anyone who wants to use it, whether its on their browser or mobile or a desktop app.
 
+## This is the server for the game.
+This means this repository won't be the part that is on a users computer. Here is the [client repository](https://github.com/minecrosters/game_client)!
+
 ## The server tech stack
 
 1. [Python 3.8.5](https://www.python.org/downloads/release/python-385/) <!-- specifically 3.8.5 because idk if it matters but im not taking a risk with that --> - Might as well use something familiar to me, makes it easier to develop.
