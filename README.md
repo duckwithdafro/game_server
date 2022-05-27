@@ -5,7 +5,7 @@ This is inspired by club penguin and how it gave children something to look forw
 With that said, i plan on it to be easily accessible to anyone who wants to use it, whether its on their browser or mobile or a desktop app.
 
 ## This is the server for the game.
-This means this repository won't be the part that is on a users computer. Here is the [client repository](https://github.com/minecrosters/game_client)!
+This means this repository won't be the part that is on a users computer. Here is the [client repository](https://github.com/duckwithdafro/game_client)!
 
 ## The server tech stack
 
