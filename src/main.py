@@ -1,19 +1,15 @@
-import json
-
-import fastapi
 import supertokens_python
-from fastapi import Body, Depends, FastAPI, Form, HTTPException
-from fastapi.requests import Request
+from fastapi import FastAPI, Form
+from starlette.requests import Request
 from starlette.middleware.cors import CORSMiddleware
 
-# from starlette.middleware.sessions import SessionMiddleware
-from starlette.websockets import WebSocket
-from supertokens_python.framework.fastapi import get_middleware  # , verify_session
+from starlette.websockets import WebSocket, WebSocketDisconnect
+from supertokens_python.framework.fastapi import get_middleware
 from supertokens_python.recipe import session
-from supertokens_python.recipe.session.framework.fastapi import verify_session
 
-import models
+from src import models
 from creds import ENV  # , SECRET_KEY
+import asyncio
 
 debug: bool = ENV == "dev"
 
@@ -59,8 +55,7 @@ async def startup():
         telemetry=False,
     )
     
-    # add cors middleware and only allow requests from localhost
-    # and block websocket requests from other domains
+    # add cors middleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:3000"],
@@ -97,9 +92,29 @@ async def websocket_endpoint(websocket: WebSocket):
     This endpoint handles websocket requests for messages
     """
     
-    # REMINDER: CHECK IF SUPERTOKENS HAS VERIFY_SESSION FOR WEBSOCKETS
-    
     await websocket.accept()
+    queue = asyncio.Queue()
+    data["websockets"].append({'ws': websocket, 'queue': queue})
+    # get current world
+    
+    
+    try:
+        while True:
+            if not queue.empty():
+                event = queue.get_nowait()
+                await websocket.send_json(event)
+    
+            json_ = await websocket.receive_json()
+            if message := json_.get("message"):
+                print(message)
+                
+    except WebSocketDisconnect:
+        pass
+    
+    finally:  # when the websocket disconnects or errors then remove it from the list
+        data["websockets"].remove({'ws': websocket, 'queue': queue})
+    
+        print(data["websockets"])
 
 
 # create login route for users to login and register
@@ -138,7 +153,8 @@ async def register(
 #     # add message to channel
 #     if user in channel.users:
 #         message = models.Message(content=message, user=user, channel=channel)
-#         channel.messages.append(message)
+#         # get the ws from the channel
+#         ws = data["websockets"][data["channels"].index(channel)]["ws"]
 #         return {"message": message}
 #     else:
 #         raise HTTPException(
