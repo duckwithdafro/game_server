@@ -1,26 +1,16 @@
-from typing import List, TypedDict, Dict
-from starlette.websockets import WebSocket
-
 from pydantic import BaseModel
 
 
-class Message(BaseModel):
-    content: str
-    user: "User"
-
-
-class World(BaseModel):
-    users: List["User"] = []
-    messages: List["Message"] = []
-    ws: "WebSocket"
-
-
 class User(BaseModel):
-    id: str
-    name: str
+    username: str
+    current_world: str
+    id: int
 
 
-class Data(TypedDict):
-    users: List["User"]
-    worlds: List["World"]
-    websockets: List[Dict]
+class Message(BaseModel):
+    """
+    The message model. This is used to represent a message in the world.
+    """
+
+    sender: User
+    content: str

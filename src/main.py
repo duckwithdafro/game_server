@@ -1,15 +1,14 @@
 import supertokens_python
-from fastapi import FastAPI, Form
-from starlette.requests import Request
+from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
-
-from starlette.websockets import WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 from supertokens_python.framework.fastapi import get_middleware
 from supertokens_python.recipe import session
 
-from src import models
-from creds import ENV  # , SECRET_KEY
-import asyncio
+import worlds
+from creds import ENV
+from events import EventType
+from models import User
 
 debug: bool = ENV == "dev"
 
@@ -17,25 +16,12 @@ debug: bool = ENV == "dev"
 app = FastAPI(debug=debug)  # disable docs for production?
 
 
-data: models.Data = {
-    "users": [],
-    "channels": [],
-    "websockets": [],
-}
-
-
-@app.middleware("http")  # for debugging purposes only - remove in production
-async def http(request: Request, call_next):
-
-    # print(app.state.websockets)
-    return await call_next(request)
-
-
-# add startup event handler
 @app.on_event("startup")
 async def startup():
     """
-    This event handler is called when the server starts and adds cors middleware
+    This event handler is called when the server starts.
+
+    It is used to initialize supertokens and cors middleware.
     """
 
     # supertokens setup things
@@ -54,7 +40,7 @@ async def startup():
         recipe_list=[session.init()],
         telemetry=False,
     )
-    
+
     # add cors middleware
     app.add_middleware(
         CORSMiddleware,
@@ -65,102 +51,62 @@ async def startup():
     )
 
 
-# add shutdown event handler
-@app.on_event("shutdown")
-async def shutdown():
+async def on_ws_receive(data: dict):
     """
-    This event handler is called when the server shuts down
+    This on_ws_receive event handler is called when something is received on the websocket.
     """
-    pass
+    # process the data for events
+    if data["type"] == EventType.USER_JOIN:
+        # get world name from data
+        world_name = data["payload"]["current_world"]
+        # get the world object
+        world = worlds.get_world(world_name)
+        # create a user object
+        user = User(**data["payload"])
+        # check if the user is already in the world
+        if not world.user_in_world(user):
+            # add the user to the world
+            await world.user_join(user)
+        else:
+            # error, user already in world
+            raise worlds.AlreadyInWorldError(user, world_name)
+    elif data["type"] == EventType.USER_LEAVE:
+        # get world name from data
+        world_name = data["payload"]["current_world"]
+        # get the world object
+        world = worlds.get_world(world_name)
+        # create a user object
+        user = User(**data["payload"])
+        # check if the user is in the world
+        if world.user_in_world(user):
+            # remove the user from the world
+            await world.user_leave(user)
+        else:
+            # error, user not in world
+            raise worlds.NotInWorldError(user, world_name)
 
 
-# async def get_current_channel(request: Request):
-#     """
-#     This function returns the current channel based on the session
-#     """
-#     channel_id = request.session.get("channel_id")
-#     if channel_id is None:
-#         raise HTTPException(status_code=400, detail="Not logged in")
-#
-#     return models.Channel(id=channel_id)
-
-
-# create web socket route for messages
-@app.websocket("/api/messages/ws")
-async def websocket_endpoint(websocket: WebSocket):
+@app.websocket("/api/ws")
+async def websocket(ws: WebSocket):
     """
-    This endpoint handles websocket requests for messages
+    This websocket handler is called when a websocket connection is made.
+    :param ws: The websocket connection
     """
-    
-    await websocket.accept()
-    queue = asyncio.Queue()
-    data["websockets"].append({'ws': websocket, 'queue': queue})
-    # get current world
-    
-    
+
+    await ws.accept()
+
     try:
         while True:
-            if not queue.empty():
-                event = queue.get_nowait()
-                await websocket.send_json(event)
-    
-            json_ = await websocket.receive_json()
-            if message := json_.get("message"):
-                print(message)
-                
+            # process messages from the client
+            json_ = await ws.receive_json()
+            await on_ws_receive(json_)
+
     except WebSocketDisconnect:
         pass
-    
-    finally:  # when the websocket disconnects or errors then remove it from the list
-        data["websockets"].remove({'ws': websocket, 'queue': queue})
-    
-        print(data["websockets"])
 
-
-# create login route for users to login and register
-@app.post("/api/users/login")
-async def login(email: str, password: str):
-    """
-    This endpoint handles login requests for users
-    """
-    return {"email": email, "password": password}
-
-
-# create register route for users
-@app.post("/api/users/register", status_code=201)
-async def register(
-    email: str = Form(...), username: str = Form(...), password: str = Form(...)
-):
-    """
-    This endpoint handles registration requests for users
-    """
-    user = models.User(email=email, name=username, password=password)
-    data["users"].append(user)
-
-
-# create message route for messages to be posted with status_code HTTP_201_CREATED and only users in the same channel
-# can post messages
-# @app.post("/api/messages", status_code=fastapi.status.HTTP_201_CREATED)
-# async def post_message(
-#     request: Request,
-#     message: str = Body(..., embed=True),
-#     user: models.User = Depends(get_current_user),
-#     channel: models.Channel = Depends(get_current_channel),
-# ):
-#     """
-#     This endpoint handles posting messages
-#     """
-#     # add message to channel
-#     if user in channel.users:
-#         message = models.Message(content=message, user=user, channel=channel)
-#         # get the ws from the channel
-#         ws = data["websockets"][data["channels"].index(channel)]["ws"]
-#         return {"message": message}
-#     else:
-#         raise HTTPException(
-#             status_code=fastapi.status.HTTP_403_FORBIDDEN,
-#             detail="You are not in this channel",
-#         )
+    finally:
+        if not ws.client_state == WebSocketState.DISCONNECTED:
+            await ws.close()
 
 
 if __name__ == "__main__":
