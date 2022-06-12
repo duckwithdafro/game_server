@@ -51,7 +51,7 @@ async def startup():
     )
 
 
-async def on_ws_receive(data: dict):
+async def on_ws_receive(data: dict, ws: WebSocket):
     """
     This on_ws_receive event handler is called when something is received on the websocket.
     """
@@ -66,7 +66,7 @@ async def on_ws_receive(data: dict):
         # check if the user is already in the world
         if not world.user_in_world(user):
             # add the user to the world
-            await world.user_join(user)
+            await world.user_join(user, ws)
         else:
             # error, user already in world
             raise worlds.AlreadyInWorldError(user, world_name)
@@ -80,7 +80,7 @@ async def on_ws_receive(data: dict):
         # check if the user is in the world
         if world.user_in_world(user):
             # remove the user from the world
-            await world.user_leave(user)
+            await world.user_leave(user, ws)
         else:
             # error, user not in world
             raise worlds.NotInWorldError(user, world_name)
@@ -99,7 +99,7 @@ async def websocket(ws: WebSocket):
         while True:
             # process messages from the client
             json_ = await ws.receive_json()
-            await on_ws_receive(json_)
+            await on_ws_receive(json_, ws)
 
     except WebSocketDisconnect:
         pass

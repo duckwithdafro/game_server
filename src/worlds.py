@@ -2,6 +2,7 @@ import asyncio
 import typing
 
 from starlette.exceptions import HTTPException
+from starlette.websockets import WebSocket
 
 from models import Message, User
 from events import Event, EventType
@@ -47,31 +48,47 @@ class WorldBase:
     async def send_event(self, event: Event):
         """
         Send an event to all users in the world.
+        
         :param event: The Event() object to send.
         """
         # create event
         
         for conn in self.connections:
             ws = conn["ws"]
-            user = conn["user"]
-            
+            await ws.send_json(event)
 
-    async def user_join(self, user: User):
+    async def user_join(self, user: User, ws: WebSocket):
         """
         Add a user to the world.
+        
         :param user: The user to add.
+        :param ws: The websocket connection of the user.
         """
-        self.users.append(user)
-        await self.send_message(f"{user.name} has joined the world.")
+        connection_data = {"user": user, "ws": ws}
+        self.connections.append(connection_data)
+        # send user join event to all users
+        event = Event(
+            type=EventType.USER_JOIN,
+            payload={"user": user},
+        )
+        await self.send_event(event)
 
-    async def user_leave(self, user: User):
+    async def user_leave(self, user: User, ws: WebSocket):
         """
         Remove a user from the world.
-        :param user: The user to remove.
-        """
-        self.users.remove(user)
-        # send user join event to all users
         
+        :param user: The user to remove.
+        :param ws: The websocket connection of the user.
+        """
+        # remove the user from the world
+        connection_data = {"user": user, "ws": ws}
+        self.connections.remove(connection_data)
+        # send user leave event to all users
+        event = Event(
+            type=EventType.USER_LEAVE,
+            payload={"user": user},
+        )
+        await self.send_event(event)
 
     def user_in_world(self, user: User):
         """
@@ -80,7 +97,8 @@ class WorldBase:
         :return: True if the user is in the world, False otherwise.
         """
         # iterate over the users in the world
-        for u in self.users:
+        for conn in self.connections:
+            u = conn["user"]
             # check by id
             if u.id == user.id:
                 return True
