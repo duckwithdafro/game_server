@@ -4,6 +4,7 @@ import typing
 from starlette.exceptions import HTTPException
 
 from models import Message, User
+from events import Event, EventType
 
 
 class AlreadyInWorldError(HTTPException):
@@ -40,17 +41,20 @@ class WorldBase:
     """
 
     def __init__(self):
-        self.queue = asyncio.Queue()
         self.name = self.__class__.__name__
-        self.users = []
+        self.connections = []
 
-    async def send_message(self, message: typing.Union[str, Message]):
+    async def send_event(self, event: Event):
         """
-        Send a message to all users in the world.
-        :param message: The message to send.
+        Send an event to all users in the world.
+        :param event: The Event() object to send.
         """
-        for user in self.users:
-            await user.send_message(message)
+        # create event
+        
+        for conn in self.connections:
+            ws = conn["ws"]
+            user = conn["user"]
+            
 
     async def user_join(self, user: User):
         """
@@ -66,7 +70,8 @@ class WorldBase:
         :param user: The user to remove.
         """
         self.users.remove(user)
-        await self.send_message(f"{user.name} has left the world.")
+        # send user join event to all users
+        
 
     def user_in_world(self, user: User):
         """
