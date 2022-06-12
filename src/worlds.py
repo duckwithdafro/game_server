@@ -1,16 +1,25 @@
-import asyncio
 import typing
 
 from starlette.exceptions import HTTPException
 from starlette.websockets import WebSocket
 
-from models import Message, User
-from events import Event, EventType
+from events import (
+    Event,
+    EventType,
+    UserJoinEvent,
+    UserJoinPayload,
+    UserLeaveEvent,
+    UserLeavePayload,
+)
+from models import User, UserConnection
 
 
 class AlreadyInWorldError(HTTPException):
-    # forbidden
-    status_code = 403
+    """
+    This error is raised when a user tries to join a world they are already in.
+    """
+
+    status_code = 403  # forbidden
     detail = "You are already in this world."
 
     def __init__(self, user: User, world: str):
@@ -24,8 +33,11 @@ class AlreadyInWorldError(HTTPException):
 
 
 class NotInWorldError(HTTPException):
-    # forbidden
-    status_code = 403
+    """
+    This error is raised when a user tries to leave a world they are not in.
+    """
+
+    status_code = 403  # forbidden
     detail = "You are not in this world."
 
     def __init__(self, user: User, world: str):
@@ -43,64 +55,64 @@ class WorldBase:
 
     def __init__(self):
         self.name = self.__class__.__name__
-        self.connections = []
+        self.connections: typing.List[UserConnection] = []
 
     async def send_event(self, event: Event):
         """
         Send an event to all users in the world.
-        
+
         :param event: The Event() object to send.
         """
-        # create event
-        
+
         for conn in self.connections:
-            ws = conn["ws"]
-            await ws.send_json(event)
+            await conn.send_event(event)
 
     async def user_join(self, user: User, ws: WebSocket):
         """
         Add a user to the world.
-        
+
         :param user: The user to add.
         :param ws: The websocket connection of the user.
         """
-        connection_data = {"user": user, "ws": ws}
+
+        connection_data = UserConnection(user, ws)
         self.connections.append(connection_data)
+        payload = UserJoinPayload(user=user)
         # send user join event to all users
-        event = Event(
+        event = UserJoinEvent(
             type=EventType.USER_JOIN,
-            payload={"user": user},
+            payload=payload,
         )
         await self.send_event(event)
 
     async def user_leave(self, user: User, ws: WebSocket):
         """
         Remove a user from the world.
-        
+
         :param user: The user to remove.
         :param ws: The websocket connection of the user.
         """
-        # remove the user from the world
-        connection_data = {"user": user, "ws": ws}
-        self.connections.remove(connection_data)
+
+        self.connections.remove(UserConnection(user, ws))
         # send user leave event to all users
-        event = Event(
+        payload = UserLeavePayload(user=user)
+        event = UserLeaveEvent(
             type=EventType.USER_LEAVE,
-            payload={"user": user},
+            payload=payload,
         )
         await self.send_event(event)
 
     def user_in_world(self, user: User):
         """
         Check if a user is in the world.
+
         :param user: The user to check.
         :return: True if the user is in the world, False otherwise.
         """
         # iterate over the users in the world
         for conn in self.connections:
-            u = conn["user"]
             # check by id
-            if u.id == user.id:
+            if conn.user.id == user.id:
                 return True
         return False
 
@@ -116,10 +128,11 @@ class SpicyMackerel(WorldBase):
 _worlds = {"SpicyMackerel": SpicyMackerel()}  # type: typing.Dict[str, WorldBase]
 
 
-def get_world(name: str) -> WorldBase:
+def get_world(name: str) -> typing.Optional[WorldBase]:
     """
     Get a world by name.
+
     :param name: The name of the world.
     :return: The world.
     """
-    return _worlds[name]
+    return _worlds.get(name)
