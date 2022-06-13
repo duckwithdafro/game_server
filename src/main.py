@@ -1,5 +1,6 @@
 import supertokens_python
 from fastapi import FastAPI
+from starlette.exceptions import HTTPException
 from starlette.middleware.cors import CORSMiddleware
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 from supertokens_python.framework.fastapi import get_middleware
@@ -7,7 +8,7 @@ from supertokens_python.recipe import session
 
 import worlds
 from creds import ENV
-from events import EventType
+from events import EventType, UserJoinEvent, UserLeaveEvent
 from models import User
 
 debug: bool = ENV == "dev"
@@ -57,12 +58,17 @@ async def on_ws_receive(data: dict, ws: WebSocket):
     """
     # process the data for events
     if data["type"] == EventType.USER_JOIN:
-        # get world name from data
-        world_name = data["payload"]["current_world"]
+        # convert the data to a UserJoinEvent
+        event = UserJoinEvent(**data)
+        # get world name from event
+        world_name = event.payload.world_name
         # get the world object
         world = worlds.get_world(world_name)
+        if world is None:
+            # world doesn't exist
+            raise HTTPException(status_code=404, detail="World not found")
         # create a user object
-        user = User(**data["payload"])
+        user = User(**data["payload"]["user"])
         # check if the user is already in the world
         if not world.user_in_world(user):
             # add the user to the world
@@ -71,12 +77,18 @@ async def on_ws_receive(data: dict, ws: WebSocket):
             # error, user already in world
             raise worlds.AlreadyInWorldError(user, world_name)
     elif data["type"] == EventType.USER_LEAVE:
-        # get world name from data
-        world_name = data["payload"]["current_world"]
+        # convert the data to a UserLeaveEvent
+        event = UserLeaveEvent(**data)
+        # get world name from event
+        world_name = event.payload.world_name
         # get the world object
         world = worlds.get_world(world_name)
-        # create a user object
-        user = User(**data["payload"])
+        if world is None:
+            # world doesn't exist
+            raise HTTPException(status_code=404, detail="World not found")
+
+        # get the user object
+        user = User(**data["payload"]["user"])
         # check if the user is in the world
         if world.user_in_world(user):
             # remove the user from the world

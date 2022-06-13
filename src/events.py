@@ -17,10 +17,12 @@ class PayloadBase(BaseModel):
 
 class UserJoinPayload(PayloadBase):
     user: User
+    world_name: str
 
 
 class UserLeavePayload(PayloadBase):
     user: User
+    world_name: str
 
 
 class MessagePayload(PayloadBase):

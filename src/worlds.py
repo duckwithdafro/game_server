@@ -77,7 +77,7 @@ class WorldBase:
 
         connection_data = UserConnection(user, ws)
         self.connections.append(connection_data)
-        payload = UserJoinPayload(user=user)
+        payload = UserJoinPayload(user=user, world_name=self.name)
         # send user join event to all users
         event = UserJoinEvent(
             type=EventType.USER_JOIN,
@@ -95,7 +95,7 @@ class WorldBase:
 
         self.connections.remove(UserConnection(user, ws))
         # send user leave event to all users
-        payload = UserLeavePayload(user=user)
+        payload = UserLeavePayload(user=user, world_name=self.name)
         event = UserLeaveEvent(
             type=EventType.USER_LEAVE,
             payload=payload,
