@@ -1,3 +1,4 @@
+import typing
 from enum import Enum
 
 from pydantic import BaseModel
@@ -17,10 +18,12 @@ class PayloadBase(BaseModel):
 
 class UserJoinPayload(PayloadBase):
     user: User
+    world_name: str
 
 
 class UserLeavePayload(PayloadBase):
     user: User
+    world_name: str
 
 
 class MessagePayload(PayloadBase):
