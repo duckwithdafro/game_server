@@ -8,7 +8,7 @@ from models import Message, User
 class EventType(Enum):
     USER_JOIN = "user_join"
     USER_LEAVE = "user_leave"
-    MESSAGE = "message"
+    USER_MESSAGE = "user_message"
 
 
 class PayloadBase(BaseModel):
@@ -25,8 +25,9 @@ class UserLeavePayload(PayloadBase):
     world_name: str
 
 
-class MessagePayload(PayloadBase):
+class UserMessagePayload(PayloadBase):
     message: Message
+    world_name: str
 
 
 class Event(BaseModel):
@@ -45,6 +46,6 @@ class UserLeaveEvent(Event):
     payload: UserLeavePayload
 
 
-class MessageEvent(Event):
-    type = EventType.MESSAGE
-    payload: MessagePayload
+class UserMessageEvent(Event):
+    type = EventType.USER_MESSAGE
+    payload: UserMessagePayload
