@@ -42,7 +42,7 @@ class NotInWorldError(HTTPException):
 
     def __init__(self, user: User, world: str):
         # include the user and world in the headers
-        headers = {"user": user, "world": world}
+        headers = {"user": str(user.id), "world": world}
         super().__init__(
             status_code=self.status_code, detail=self.detail, headers=headers
         )
