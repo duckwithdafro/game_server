@@ -212,7 +212,7 @@ async def discord_auth(code: str):
     print(code)
 
 
-@app.get("/session")
+@app.get("/api/session")
 async def session_info(sess: SessionContainer = Depends(verify_session())):
     return {
         "session_handle": sess.get_handle(),

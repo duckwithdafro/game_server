@@ -7,12 +7,12 @@ authors = ["minecrosters"]
 [tool.poetry.dependencies]
 python = "^3.8"
 fastapi = "^0.78.0"
-supertokens-python = "^0.8.1"
+supertokens-python = "^0.9.1"
 python-multipart = "^0.0.5"
-uvicorn = {extras = ["standard"], version = "^0.17.6"}
+uvicorn = {extras = ["standard"], version = "^0.18.2"}
 
 [tool.poetry.dev-dependencies]
-black = "^22.3.0"
+black = "^22.6.0"
 isort = "^5.10.1"
 
 [build-system]
