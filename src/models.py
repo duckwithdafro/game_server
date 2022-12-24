@@ -16,7 +16,7 @@ class UserConnection:
     async def send_event(
         self, event: "Event"
     ):  # the type of event is Event from events.py
-        await self.ws.send_json(event)
+        await self.ws.send_json(event.dict())
 
 
 class Message(BaseModel):

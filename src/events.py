@@ -5,10 +5,14 @@ from pydantic import BaseModel
 from models import Message, User
 
 
-class EventType(Enum):
+class EventType(str, Enum):
     USER_JOIN = "user_join"
     USER_LEAVE = "user_leave"
     USER_MESSAGE = "user_message"
+
+    @classmethod
+    def from_str(cls, string: str):
+        return getattr(cls, string.lower())
 
 
 class PayloadBase(BaseModel):

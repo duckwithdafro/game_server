@@ -1,7 +1,7 @@
 import typing
 
 from starlette.exceptions import HTTPException
-from starlette.websockets import WebSocket
+from fastapi import WebSocket, WebSocketException, status
 
 from events import (
     Event,
@@ -46,6 +46,14 @@ class NotInWorldError(HTTPException):
         super().__init__(
             status_code=self.status_code, detail=self.detail, headers=headers
         )
+
+
+class NotInWorld(WebSocketException):
+    code = status.WS_1003_UNSUPPORTED_DATA
+    reason = "\"{world_name}\" is not a valid world."
+
+    def __init__(self, world_name):
+        super().__init__(code=self.code, reason=self.reason.format(world_name=world_name))
 
 
 class WorldBase:
