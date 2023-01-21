@@ -15,11 +15,15 @@ def main():
 
         user = {"name": "test", "current_world": "", "id": 0}
 
-        payload = {"world_name": "SpicyMackerl", "user": user}
-        ws.send_json({"type": "user_join", "payload": payload})
+        payload = {"world_name": "SpicyMackerel", "user": user}
+        to_send = {"type": "user_join", "payload": payload}
+        ws.send_json(to_send)
+        to_send["payload"]["user"]["id"] = 1
+        ws.send_json(to_send)
         while True:
             try:
                 print(ws.receive_json())
+
             except WebSocketDisconnect as e:
                 traceback.print_exc()
 

@@ -11,6 +11,7 @@ class User(BaseModel):
 class UserConnection:
     def __init__(self, user: User, ws: WebSocket):
         self.user = user
+        self.id = user.id  # shorthand for connection.user.id
         self.ws = ws
 
     async def send_event(

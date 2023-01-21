@@ -1,7 +1,7 @@
 import typing
 
-from starlette.exceptions import HTTPException
 from fastapi import WebSocket, WebSocketException, status
+from starlette.exceptions import HTTPException
 
 from events import (
     Event,
@@ -14,46 +14,41 @@ from events import (
 from models import User, UserConnection
 
 
-class AlreadyInWorldError(HTTPException):
+class AlreadyInWorldError(WebSocketException):
     """
     This error is raised when a user tries to join a world they are already in.
     """
 
-    status_code = 403  # forbidden
-    detail = "You are already in this world."
+    code = status.WS_1003_UNSUPPORTED_DATA
+    reason = "You are already in this world."
 
-    def __init__(self, user: User, world: str):
-        # include the user and world in the headers
-        headers = {"user": user, "world": world}
-        super().__init__(
-            status_code=self.status_code,
-            detail=self.detail,
-            headers=headers,
-        )
+    def __init__(self):
+        super().__init__(code=self.code, reason=self.reason)
+
+    def __str__(self):
+        return self.reason
 
 
-class NotInWorldError(HTTPException):
+class NotInWorldError(WebSocketException):
     """
     This error is raised when a user tries to leave a world they are not in.
     """
 
-    status_code = 403  # forbidden
-    detail = "You are not in this world."
+    code = status.WS_1003_UNSUPPORTED_DATA
+    reason = "You are not in this world."
 
-    def __init__(self, user: User, world: str):
-        # include the user and world in the headers
-        headers = {"user": str(user.id), "world": world}
-        super().__init__(
-            status_code=self.status_code, detail=self.detail, headers=headers
-        )
+    def __init__(self):
+        super().__init__(code=self.code, reason=self.reason)
 
 
 class NotInWorld(WebSocketException):
     code = status.WS_1003_UNSUPPORTED_DATA
-    reason = "\"{world_name}\" is not a valid world."
+    reason = '"{world_name}" is not a valid world.'
 
     def __init__(self, world_name):
-        super().__init__(code=self.code, reason=self.reason.format(world_name=world_name))
+        super().__init__(
+            code=self.code, reason=self.reason.format(world_name=world_name)
+        )
 
 
 class WorldBase:
@@ -63,7 +58,7 @@ class WorldBase:
 
     def __init__(self):
         self.name = self.__class__.__name__
-        self.connections: typing.List[UserConnection] = []
+        self.connections: dict[int, UserConnection] = {}
 
     async def send_event(self, event: Event):
         """
@@ -72,20 +67,19 @@ class WorldBase:
         :param event: The Event() object to send.
         """
 
-        for conn in self.connections:
+        for conn in self.connections.values():
             await conn.send_event(event)
 
-    async def user_join(self, user: User, ws: WebSocket):
+    async def user_join(self, conn: UserConnection):
         """
         Add a user to the world.
 
-        :param user: The user to add.
-        :param ws: The websocket connection of the user.
+
         """
 
-        connection_data = UserConnection(user, ws)
-        self.connections.append(connection_data)
-        payload = UserJoinPayload(user=user, world_name=self.name)
+        # connection_data = UserConnection(user, ws)
+        self.connections[conn.id] = conn
+        payload = UserJoinPayload(user=conn.user, world_name=self.name)
         # send user join event to all users
         event = UserJoinEvent(
             type=EventType.USER_JOIN,
@@ -93,36 +87,28 @@ class WorldBase:
         )
         await self.send_event(event)
 
-    async def user_leave(self, user: User, ws: WebSocket):
+    async def user_leave(self, conn: UserConnection):
         """
         Remove a user from the world.
 
-        :param user: The user to remove.
-        :param ws: The websocket connection of the user.
         """
 
-        self.connections.remove(UserConnection(user, ws))
+        self.connections.pop(conn.id)
         # send user leave event to all users
-        payload = UserLeavePayload(user=user, world_name=self.name)
+        payload = UserLeavePayload(user=conn.user, world_name=self.name)
         event = UserLeaveEvent(
             type=EventType.USER_LEAVE,
             payload=payload,
         )
         await self.send_event(event)
 
-    def user_in_world(self, user: User):
+    def user_in_world(self, conn) -> bool:
         """
         Check if a user is in the world.
 
-        :param user: The user to check.
         :return: True if the user is in the world, False otherwise.
         """
-        # iterate over the users in the world
-        for conn in self.connections:
-            # check by id
-            if conn.user.id == user.id:
-                return True
-        return False
+        return any(conn.id == c.id for c in self.connections.values())
 
 
 class SpicyMackerel(WorldBase):

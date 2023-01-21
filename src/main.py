@@ -5,13 +5,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 import worlds
-from creds import (
-    DISCORD_CLIENT_ID,
-    DISCORD_CLIENT_SECRET,
-    ENV,
-    ST_API_KEY,
-    ST_CONNECTION_URI,
-)
+from creds import DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, ENV
 from events import (
     EventType,
     UserJoinEvent,
@@ -19,7 +13,7 @@ from events import (
     UserMessageEvent,
     UserMessagePayload,
 )
-from models import Message, User
+from models import Message, User, UserConnection
 
 debug: bool = ENV == "dev"
 
@@ -49,7 +43,18 @@ async def on_ws_receive(data: dict, ws: WebSocket):
     This on_ws_receive event handler is called when something is received on the websocket.
     """
 
-    event_type = EventType(data["type"])
+    try:
+        event_type = EventType(data["type"])
+    except KeyError:
+        raise WebSocketException(
+            code=status.WS_1003_UNSUPPORTED_DATA,
+            reason="Event is required for websockets",
+        )
+    except ValueError:
+        raise WebSocketException(
+            code=status.WS_1003_UNSUPPORTED_DATA,
+            reason=f"Invalid event type \"{data['type']}\"",
+        )
 
     if event_type == EventType.USER_JOIN:
 
@@ -61,12 +66,13 @@ async def on_ws_receive(data: dict, ws: WebSocket):
             raise worlds.NotInWorld(world_name)
 
         user = User(**data["payload"]["user"])
+        user_connection = UserConnection(user, ws)
 
         if not world.user_in_world(user):
-            await world.user_join(user, ws)
+            await world.user_join(user_connection)
             await ws.send_json({"status": "success"})
         else:
-            raise worlds.AlreadyInWorldError(user, world_name)
+            raise worlds.AlreadyInWorldError
 
     elif event_type == EventType.USER_LEAVE:
 
@@ -80,9 +86,10 @@ async def on_ws_receive(data: dict, ws: WebSocket):
         user = User(**data["payload"]["user"])
 
         if world.user_in_world(user):
-            await world.user_leave(user, ws)
+            user_connection = world.connections[user.id]
+            await world.user_leave(user_connection)
         else:
-            raise worlds.NotInWorldError(user, world_name)
+            raise worlds.NotInWorldError
 
     elif event_type == EventType.USER_MESSAGE:
 
@@ -98,10 +105,10 @@ async def on_ws_receive(data: dict, ws: WebSocket):
         if world.user_in_world(user):
             await world.send_event(event)
         else:
-            raise worlds.NotInWorldError(user, world_name)
+            raise worlds.NotInWorldError
 
     else:
-        raise HTTPException(status_code=422, detail="Unprocessable entity")
+        print("this shouldnt hppen")
 
 
 @app.websocket("/api/ws")
@@ -126,6 +133,9 @@ async def websocket(ws: WebSocket):
         print(e.json())
         print(e.args)
 
+    except Exception as e:
+        print(repr(e))
+
     finally:
         if not ws.client_state == WebSocketState.DISCONNECTED:
             await ws.close()
@@ -144,17 +154,11 @@ async def post_message(message: Message):
     )
     message_event = UserMessageEvent(payload=message_payload)
     if not world.user_in_world(message.user):
-        raise worlds.NotInWorldError(message.user, message.user.current_world)
+        raise worlds.NotInWorldError
     await world.send_event(message_event)
-
-
-@app.post("/api/join")
-async def join(user: User, world: str):
-    # token
-    pass
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="localhost", port=9000, debug=debug)
+    uvicorn.run(app, host="localhost", port=9000)
